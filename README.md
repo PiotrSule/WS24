@@ -2,43 +2,16 @@ Sulewski P., (2024). Deviate from normality due to small excess kurtosis values.
 Wiadomości Statystyczne. The Polish Statistician.
 R codes used to produce obtained results. Please copy to the R file.
 
-  library(MASS)
-  library(Rfast)
-  library(circular)
-  library(unifed)
-  library(GPBayes)
-  library(betafunctions)
-  library(PearsonDS)
-  library(geostats)
-  library(stats4)
-  library(gsl)
-  library(pracma)
-  library(truncnorm)
-  library(qGaussian)
-  library(gnorm)
-  library(fBasics)
-  library(nortest)
-  library(moments)
-  library(normtest)
-  library(xlsx)
-  library(PSGoft)
-  library(LaplacesDemon)
-  library(extraDistr)
-  library(moments)
-  library(DescTools)
-  library(nortest)
-  library(lawstat)
-  library(vsgoftest)
-  library(rmutil)
-  library(evd)
-  library(unifed)
-  library(devtools)
-  library(circular)
-  library(ExtDist)
-  library(PSDistr)
-  library(PoweR)
-  library(moments)
-  
+library(base);  library(PoweR)
+library(betafunctions); library(PSDistr)
+library(gnorm); library(unifed)
+library(GPBayes); library(PearsonDS)
+library(ExtDist); library(truncnorm)
+library(extraDistr); library(pracma)
+library(xlsx); library(nortest)
+library(normtest); library(moments)
+library(fBasics); library(lawstat)
+
   set.seed(2024)
   n=25 # sample size
   dane=numeric(n) #data vector
@@ -50,7 +23,7 @@ R codes used to produce obtained results. Please copy to the R file.
   #11-EN, 12-EL, 13-ET, 14-GE, 15-GN, 16-IH, 17-NIG, 18-P, 19-PC, 20-PCN
   #21-QG, 22-SCN, 23-SHN,24-SB, 25-SU, 26-T, 27-TPSN, 28-TN, 29-TU, 30-UP
   
-  alt=5 #selected alternative
+  alt=1 #selected alternative
   # Step 2. Run generator for selected alternative in row alt+513
   # Step 3. Read the result in the file "alt.xlsx" or "alt.csv"
   
@@ -141,7 +114,7 @@ R codes used to produce obtained results. Please copy to the R file.
   dch=function(x,a,b) {
     return(inside(x,a,b)/mian(x,a,b)) }
   rch=function(n,a,b){
-    wyn=numeric(n); d=dCH(0,a,b)
+    wyn=numeric(n); d=dch(0,a,b)
     for (i in 1:n){
       R1 = runif(1,-5,5); R2 = runif(1,0,d); w = dch(R1,a,b)
       while(w<R2){
@@ -238,7 +211,7 @@ R codes used to produce obtained results. Please copy to the R file.
     return(sort(wyn))  }
   
   # 15) Generalized normal distribution, "gnorm" package 
-  # dgnorm(x,0,sqrt(2),b) and rgnorm(n,0,sqrt(2),b
+  # dgnorm(x,0,sqrt(2),b) and rgnorm(n,0,sqrt(2),b)
   
   # 16) Irwin–Hall distribution, "unifed" package for dirwin.hall(x,n)
   rirwin.hall=function(n,nn){
@@ -250,14 +223,14 @@ R codes used to produce obtained results. Please copy to the R file.
     return(sort(wyn)) }
   
   # 17) Normal-inverse Gaussian distribution 
-  dNIG=function(x,a,d) {
-    return(a*d*exp(a*d)*BesselK(1,a*sqrt(x^2+d^2))/pi/sqrt(x^2+d^2)) }
-  rNIG=function(n,a,d){
-    wyn=numeric(n); d1=dNIG(0,a,d)
+  dnig=function(x,a,d) {
+    return(a*d*exp(a*d)*besselK(a*sqrt(x^2+d^2),1)/pi/sqrt(x^2+d^2)) }
+  rnig=function(n,a,d){
+    wyn=numeric(n); d1=dnig(0,a,d)
     for (i in 1:n){
-      R1 = runif(1,-6,6); R2 = runif(1,0,d1); w = dNIG(R1,a,d)
+      R1 = runif(1,-6,6); R2 = runif(1,0,d1); w = dnig(R1,a,d)
       while(w<R2){
-        R1 = runif(1,-6,6); R2 = runif(1,0,d1); w = dNIG(R1,a,d) }
+        R1 = runif(1,-6,6); R2 = runif(1,0,d1); w = dnig(R1,a,d) }
       wyn[i]=R1 }
     return(sort(wyn))  }
   
@@ -271,10 +244,10 @@ R codes used to produce obtained results. Please copy to the R file.
   # 20) Position-contamined normal distribution
   dpcn=function(x,a){
     return(0.5*dnorm(x,0,1)+0.5*dnorm(x,a,1)) }
-  rpcn<-function (n,a) {
+  rpcn=function(n,a) {
     wyn=numeric(n)
     for (i in 1:n){
-      wyn[i]=0.5*rnorm(1,0,1)+0.5*rnorm(1,a,1)}
+      wyn[i]=ifelse(runif(1,0,1)<0.5,rnorm(1,0,1),rnorm(1,a,1)) }
     return(sort(wyn)) }
   
   # 21) Q-gaussian distribution 
@@ -293,7 +266,7 @@ R codes used to produce obtained results. Please copy to the R file.
  
   # 22) Scale-contamined normal distribution 
   dscn=function(x,a,w) {
-    return((1-w)*dnorm(x,0,1)+(w/a)*dnorm(x/a,0,1)) }
+    return((1-w)*dnorm(x,0,1)+w*dnorm(x,0,a)) }
   rscn=function(n,a,w) {
     wyn=numeric(n)
     for (i in 1:n){
@@ -321,7 +294,7 @@ R codes used to produce obtained results. Please copy to the R file.
   # 27) Two-piece skew-normal distribution 
   dtpsn<-function (x,b,c) {
     return(2*pi*dnorm(x/b,0,1)*pnorm(c*abs(x)/b,0,1)/(b*(pi+2*atan(c)))) }
-  rTPSN=function(n,b,c){
+  rtpsn=function(n,b,c){
     wyn=numeric(n)
     d=ifelse(c<0.5,dtpsn(0,b,c),
         optimize(function(x) dtpsn(x,b,c),interval=c(0,3), maximum=1)$maximum)
@@ -435,7 +408,7 @@ R codes used to produce obtained results. Please copy to the R file.
   
   #18
   pearson=numeric(12)
-  person=c(-1,-0.9,-0.8,-0.7,-0.6,-0.5,0,0.1,0.2,0.3,0.4,0.5)
+  pearson=c(-1,-0.9,-0.8,-0.7,-0.6,-0.5,0,0.1,0.2,0.3,0.4,0.5)
   kol[18]=length(pearson)
   
   #19
@@ -506,68 +479,66 @@ R codes used to produce obtained results. Please copy to the R file.
   cv=numeric(12) # critical values
   cv=c(0.9582,0.1492,0.0448,2.3458,9.9630,0.0170,5.8733,4.1571,7.2457,2.3016,6.3707,0.1588)
   power=matrix(NA,nrow=20,ncol=kol[alt]) #power of tests
-  
+  alt
   for (j in 1: kol[alt]) power[,j]=0 #resetting the table
- 
   for (j in 1:kol[alt])
     {
       for (i in 1:ile)
         {
           print(paste(j,i))
-          #dane=rbates(n,8.077,bates[j])
-          #dane=rbep(n,sqrt(2),bep[1,j],bep[2,j])
-          #dane=rbpn(n,bpn[j])
-          #dane=sort(rBeta.4P(n,-beta_[2,j],beta_[2,j],beta_[1,j],beta_[1,j]))
-          #dane=rbssn(n,bssn[1,j],bssn[2,j])
-          #dane=rch(n,2,ch[j])
-          #dane=rdsn(n,dsn[1,j],dsn[2,j],0,0)
-          #dane=reck(n,8.326,eck[j])
-          #dane=res(n,es[j])
-          #dane=rep(n,ep[j])
-          #dane=renorm(n,enor[j])
-          #dane=rel(n,el[j])
-          #dane=restu(n,estu[1,j],estu[2,j])
-          #dane=rge(n,ge[j])
-          #dane=sort(rgnorm(n,0,sqrt(2),gnor[j]))
-          #dane=sort(rirwin.hall(n,ih[j]))
-          #dane=rNIG(n,nig_[1,j],nig_[2,j])
-          #dane=sort(rpearson(n,moments=c(mean=0,variance=1,skewness=0,kurtosis=pearson[j]+3)))
-          #dane=sort(rpc(n,pc[j]))
-          #dane=rpcn(n,pcn[j])
-          #dane=rqg(n,qp[1,j],qp[2,j])
-          #dane=rscn(n,scn[1,j],scn[2,j])
-          #dane=rshn(n,shn[1,j],shn[2,j])
-          #dane=sort(rJohnsonSB(n,0,jsb[j],-4,8))
-          #dane=sort(rJohnsonSU(n,0,jsu[j],0,17))
-          #dane=sort(rt(n,t[j]))
-          #dane=rtpsn(n,1,[tpsn[j]])
-          #dane=sort(rtruncnorm(n,-tn[1,j],tn[1,j],0,tn[2,j]))
-          #dane=sort(rtlambda(n,tl[j]))
-          #dane=rup(n,4/3,up[j])
-        
-    
-          # if(ad.test(dane)$p.value<0.05) power[1,j]=power[1,j]+1 #1
-          # if(shapiro.test(dane)$p.value<0.05) power[2,j]=power[2,j]+1 #2
-          # if(kurtosis.norm.test(dane)$p.value<0.05) power[3,j]=power[3,j]+1 #3
-          # if(agostino.test(dane)$p.value<0.05) power[4,j]=power[4,j]+1 #4
-          # if(sf.test(dane)$p.value<0.05) power[5,j]=power[5,j]+1 #5
-          # if(dagoTest(dane)@test$statistic[1]>cv[11]) power[6,j]=power[6,j]+1 #6
-          # if(RJ(dane)<cv[1]) power[7,j]=power[7,j]+1 #7
-          # if(jarque.test(dane)$statistic>cv[8]) power[8,j]=power[8,j]+1 #8
-          # if(statcompute(stat.index = 10, data = dane, level = 0.05)$statistic>cv[7]) power[9,j]=power[9,j]+1 #9
-          # if(statcompute(stat.index = 26, data = dane, level = 0.05)$statistic>cv[3]) power[10,j]=power[10,j]+1 #10
-          # if(ajb.norm.test(dane)$p.value<0.05) power[11,j]=power[11,j]+1 #11
-          # if(bonett.test(dane)$p.value<0.05) power[12,j]=power[12,j]+1 #12
-          # if(statcompute(stat.index = 4, data = dane, level = 0.05)$statistic>cv[4]) power[13,j]=power[13,j]+1 #13
-          # if(statcompute(stat.index = 3, data = dane, level = 0.05)$statistic>cv[5]) power[14,j]=power[14,j]+1 #14
-          # if(sj.test(dane)$statistic>cv[10]) power[15,j]=power[15,j]+1 #15
-          # if(statcompute(stat.index = 30, data = dane, level = 0.05)$statistic>cv[6]) power[16,j]=power[16,j]+1 #16
-          # if(rjb.test(dane)$statistic>cv[9]) power[17,j]=power[17,j]+1 #17
-          # if(statcompute(stat.index = 36, data = dane, level = 0.05)$pvalue<0.05) power[18,j]=power[18,j]+1 #18
-          # if(statcompute(stat.index = 37, data = dane, level = 0.05)$pvalue<0.05) power[19,j]=power[19,j]+1 #19
-          # if ((kurtosis(dane)-3)>0) if (LF(dane,1,1)>cv[12]) power[20,j]=power[20,j]+1 #21
-          # if ((kurtosis(dane)-3)<0) if (LF(dane,0,0)>cv[2]) power[20,j]=power[20,j]+1 #21
+          # dane=rbates(n,8.077,bates[j])
+          # dane=rbep(n,sqrt(2),bep[1,j],bep[2,j])
+          # dane=rbpn(n,bpn[j])
+          # dane=sort(rBeta.4P(n,-beta_[2,j],beta_[2,j],beta_[1,j],beta_[1,j]))
+          # dane=rbssn(n,bssn[1,j],bssn[2,j])
+          # dane=rch(n,2,ch[j])
+          # dane=rdsn(n,dsn[1,j],dsn[2,j],0,0)
+          # dane=reck(n,8.326,eck[j])
+          # dane=res(n,es[j])
+          # dane=rep(n,ep[j])
+          # dane=renorm(n,enor[j])
+          # dane=rel(n,el[j])
+          # dane=restu(n,estu[1,j],estu[2,j])
+          # dane=rge(n,ge[j])
+          # dane=sort(rgnorm(n,0,sqrt(2),gnor[j]))
+          # dane=sort(rirwin.hall(n,ih[j]))
+          # dane=rnig(n,nig_[1,j],nig_[2,j])
+          # dane=sort(rpearson(n,moments=c(mean=0,variance=1,skewness=0,kurtosis=pearson[j]+3)))
+          # dane=sort(rpc(n,pc[j]))
+          # dane=rpcn(n,pcn[j])
+          # dane=rqg(n,qg[1,j],qg[2,j])
+          # dane=rscn(n,scn[1,j],scn[2,j])
+          # dane=rshn(n,shn[1,j],shn[2,j])
+          # dane=sort(rJohnsonSB(n,0,jsb[j],-4,8))
+          # dane=sort(rJohnsonSU(n,0,jsu[j],0,17))
+          # dane=sort(rt(n,t[j]))
+          # dane=rtpsn(n,1,tpsn[j])
+          # dane=sort(rtruncnorm(n,-tn[1,j],tn[1,j],0,tn[2,j]))
+          # dane=sort(rtlambda(n,tl[j]))
+          # dane=rup(n,4/3,up[j])
+          if(ad.test(dane)$p.value<0.05) power[1,j]=power[1,j]+1 #1
+          if(shapiro.test(dane)$p.value<0.05) power[2,j]=power[2,j]+1 #2
+          if(kurtosis.norm.test(dane)$p.value<0.05) power[3,j]=power[3,j]+1 #3
+          if(agostino.test(dane)$p.value<0.05) power[4,j]=power[4,j]+1 #4
+          if(sf.test(dane)$p.value<0.05) power[5,j]=power[5,j]+1 #5
+          if(dagoTest(dane)@test$statistic[1]>cv[11]) power[6,j]=power[6,j]+1 #6
+          if(RJ(dane)<cv[1]) power[7,j]=power[7,j]+1 #7
+          if(jarque.test(dane)$statistic>cv[8]) power[8,j]=power[8,j]+1 #8
+          if(statcompute(stat.index = 10, data = dane, level = 0.05)$statistic>cv[7]) power[9,j]=power[9,j]+1 #9
+          if(statcompute(stat.index = 26, data = dane, level = 0.05)$statistic>cv[3]) power[10,j]=power[10,j]+1 #10
+          if(ajb.norm.test(dane)$p.value<0.05) power[11,j]=power[11,j]+1 #11
+          if(bonett.test(dane)$p.value<0.05) power[12,j]=power[12,j]+1 #12
+          if(statcompute(stat.index = 4, data = dane, level = 0.05)$statistic>cv[4]) power[13,j]=power[13,j]+1 #13
+          if(statcompute(stat.index = 3, data = dane, level = 0.05)$statistic>cv[5]) power[14,j]=power[14,j]+1 #14
+          if(sj.test(dane)$statistic>cv[10]) power[15,j]=power[15,j]+1 #15
+          if(statcompute(stat.index = 30, data = dane, level = 0.05)$statistic>cv[6]) power[16,j]=power[16,j]+1 #16
+          if(rjb.test(dane)$statistic>cv[9]) power[17,j]=power[17,j]+1 #17
+          if(statcompute(stat.index = 36, data = dane, level = 0.05)$pvalue<0.05) power[18,j]=power[18,j]+1 #18
+          if(statcompute(stat.index = 37, data = dane, level = 0.05)$pvalue<0.05) power[19,j]=power[19,j]+1 #19
+          if ((kurtosis(dane)-3)>0) if (LF(dane,1,1)>cv[12]) power[20,j]=power[20,j]+1 #21
+          if ((kurtosis(dane)-3)<0) if (LF(dane,0,0)>cv[2]) power[20,j]=power[20,j]+1 #21
    }
   }
-write.csv2(power/ile,paste(alt,"U.csv"))
 write.xlsx(power/ile,paste(alt,"U.xlsx"))
+
+
