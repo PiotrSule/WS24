@@ -1,160 +1,544 @@
-library(base); library(PoweR) library(betafunctions); library(PSDistr) library(gnorm); library(unifed) library(GPBayes); library(PearsonDS) library(ExtDist); library(truncnorm) library(extraDistr); library(pracma) library(xlsx); library(nortest) library(normtest); library(moments) library(fBasics); library(lawstat)
+library(base);  library(PoweR)
+library(betafunctions); library(PSDistr)
+library(gnorm); library(unifed)
+library(GPBayes); library(PearsonDS)
+library(ExtDist); library(truncnorm)
+library(extraDistr); library(pracma)
+library(xlsx); library(nortest)
+library(normtest); library(moments)
+library(fBasics); library(lawstat)
 
-set.seed(2024) n=25 # sample size dane=numeric(n) #data vector ile=1e4 #number of repetitions kol=numeric(30) #column number in the results table for the 30 alternatives
+  set.seed(2024)
+  n=25 # sample size
+  dane=numeric(n) #data vector
+  ile=1e4 #number of repetitions
+  kol=numeric(30) #column number in the results table for the 30 alternatives
+  
+  # Step 1. Select an alternative distribution and specify the alt value according the rule:
+  #1-Bates, 2-BEP, 3-BPN, 4-Beta, 5-BSSN, 6-CH, 7-DSN, 8-ECK, 9-ES, 10-EP
+  #11-EN, 12-EL, 13-ET, 14-GE, 15-GN, 16-IH, 17-NIG, 18-P, 19-PC, 20-PCN
+  #21-QG, 22-SCN, 23-SHN,24-SB, 25-SU, 26-T, 27-TPSN, 28-TN, 29-TU, 30-UP
+  
+  alt=1 #selected alternative
+  # Step 2. Run generator for selected alternative in row alt+513
+  # Step 3. Read the result in the file "alt.xlsx" or "alt.csv"
+  
+  
+  # The GoFT codes implemented in R software are shown in Table 3 (see the paper).
+  # The GOFT codes not implemented in R software are as follows:
+  LF=function(x,a,b){
+    x=sort(x)
+    n=length(x)
+    F=pnorm(x, mean(x), sd(x))
+    return(max(abs((seq(1 : n) - a)/(n - a - b + 1) - F)))
+  }
+  RJ=function(x){
+    x=sort(x); n=length(x)
+    z=qnorm((seq(1 : n) - 3/8)/(n - 3/8 - 3/8 + 1),0,1)
+    s1=sum(x*z)
+    s2=sum(z*z)
+    return(s1/sqrt(s2*(n-1)*var(x)))
+  }
+  
+  # Used alternatives: PDF with prefix d, generator with prefix r 
+  # and auxiliary functions for some alternatives
+  
+  #1) Bates distribution
+  db=function(x,n){
+    w1=(n/2/factorial(n-1)); s=0
+    for (k in 0:n){
+      as=(-1)^k*choose(n,k)*(n*x-k)^(n-1)*sign(n*x-k); s=s+as }
+    return(w1*s) }
+  dbates=function(x,a,n){
+    aa=(x+a)/2/a
+    return(db(aa,n)/2/a) }
+  rbates=function(nn,a,n){
+    wyn=numeric(nn); d=dbates(0,a,n)
+    for (i in 1:nn){
+      R1 = runif(1,-a,a); R2 = runif(1,0,d); w = dbates(R1,a,n)
+      while(w<R2){
+        R1 = runif(1,-a,a); R2 = runif(1,0,d); w = dbates(R1,a,n)  }
+      wyn[i]=R1 }
+    return(sort(wyn))  }
+  
+  #2) Bimodal exponential power distribution 
+  dbep=function(x,b,p,q){
+    return(p*(abs(x/b))^q*exp(-(abs(x/b))^p)/(2*b*gamma((q+1)/p))) }
+  rbep <- function(n,b,p,q) {
+    x=numeric(n)
+    for (i in 1:n) {
+      Y=rgamma(1,(q+1)/p,1); I=ifelse(runif(1,0,1)<=0.5,1,-1)
+      x[i]=b*I*Y^(1/p) }
+    return (sort(x))   }
+  
+  # 3) Bimodal power normal distribution 
+  dbpn=function(x,a){
+    return(a*2^(a-1)*dnorm(x,0,1)*pnorm(abs(x),0,1)^(a-1)/(2^a-1)) }
+  rbpn=function(n,a){
+    wyn=numeric(n)
+    for (i in 1:n){
+      U=runif(1,0,1)
+      if (U<0.5) wyn[i]=-qnorm((1-2^(1-a)*U*(2^a-1))^(1/a),0,1) else 
+        wyn[i]=qnorm((2^(1-a)*(2^a-1)*(U-0.5)+2^(-a))^(1/a),0,1) }
+    return(sort(wyn)) }
 
-Step 1. Select an alternative distribution and specify the alt value according the rule:
-#1-Bates, 2-BEP, 3-BPN, 4-Beta, 5-BSSN, 6-CH, 7-DSN, 8-ECK, 9-ES, 10-EP #11-EN, 12-EL, 13-ET, 14-GE, 15-GN, 16-IH, 17-NIG, 18-P, 19-PC, 20-PCN #21-QG, 22-SCN, 23-SHN,24-SB, 25-SU, 26-T, 27-TPSN, 28-TN, 29-TU, 30-UP
+  # 4) Beta distribution, package "betafunctions"
+  #    dBeta.4P(x, -b, b, a, a) and rBeta.4P(n, -b, b, a, a)
+  
+  # 5) Bimodal skew-symmetric normal distribution 
+    dbssn <- function(x,a,b) {
+      licz = 2 * (a) ^ (1.5) * (b + x ^ 2) * exp(-a * x ^ 2)
+      mian = 1 + 2 * a * b
+      return (licz / mian / sqrt(pi)) }
+    rbssn=function(n,a,b){
+      wyn=numeric(n)
+      dd=ifelse(a>=2,dbssn(0,a,b),
+        optimize(function(x) dbssn(x,a,b),interval=c(0,1), maximum=1)$maximum)
+      for (i in 1:n){
+        R1 = runif(1,-2,2); R2 = runif(1,0,dd); w = dbssn(R1,a,b)
+        while(w<R2){
+          R1 = runif(1,-2,2); R2 = runif(1,0,dd); w = dbssn(R1,a,b) }
+        wyn[i]=R1 }
+      return(sort(wyn)) }
+   
+  # 6) Champernowne distribution 
+  inside=function(x,a,b){
+    return(1/(cosh(a*x)+b))  }
+  mian=function(x,a,b)  {
+    B58<-function (x) return (inside(x,a,b))
+    return (as.numeric(integrate(B58, lower =-Inf, upper = Inf)[1]))  }
+  dch=function(x,a,b) {
+    return(inside(x,a,b)/mian(x,a,b)) }
+  rch=function(n,a,b){
+    wyn=numeric(n); d=dch(0,a,b)
+    for (i in 1:n){
+      R1 = runif(1,-5,5); R2 = runif(1,0,d); w = dch(R1,a,b)
+      while(w<R2){
+        R1 = runif(1,-5,5); R2 = runif(1,0,d); w = dch(R1,a,b) }
+      wyn[i]=R1 }
+    return(sort(wyn)) }
+ 
+  # 7) DS normal distribution, package "PSDistr"
+  # ddsn(x,a,b,0,0) and rdsn(n,a,b,0,0)
+  
+  # 8) Easily changeable kurtosis distribution, package "PSDistr" 
+  # deck(x,a,p) and reck(n,a,p)
 
-alt=1 #selected alternative
-
-Step 2. Run generator for selected alternative in row alt+513
-Step 3. Read the result in the file "alt.xlsx" or "alt.csv"
-The GoFT codes implemented in R software are shown in Table 3 (see the paper).
-The GOFT codes not implemented in R software are as follows:
-LF=function(x,a,b){ x=sort(x) n=length(x) F=pnorm(x, mean(x), sd(x)) return(max(abs((seq(1 : n) - a)/(n - a - b + 1) - F))) } RJ=function(x){ x=sort(x); n=length(x) z=qnorm((seq(1 : n) - 3/8)/(n - 3/8 - 3/8 + 1),0,1) s1=sum(xz) s2=sum(zz) return(s1/sqrt(s2*(n-1)*var(x))) }
-
-Used alternatives: PDF with prefix d, generator with prefix r
-and auxiliary functions for some alternatives
-#1) Bates distribution db=function(x,n){ w1=(n/2/factorial(n-1)); s=0 for (k in 0:n){ as=(-1)^kchoose(n,k)(nx-k)^(n-1)sign(nx-k); s=s+as } return(w1s) } dbates=function(x,a,n){ aa=(x+a)/2/a return(db(aa,n)/2/a) } rbates=function(nn,a,n){ wyn=numeric(nn); d=dbates(0,a,n) for (i in 1:nn){ R1 = runif(1,-a,a); R2 = runif(1,0,d); w = dbates(R1,a,n) while(w<R2){ R1 = runif(1,-a,a); R2 = runif(1,0,d); w = dbates(R1,a,n) } wyn[i]=R1 } return(sort(wyn)) }
-
-#2) Bimodal exponential power distribution dbep=function(x,b,p,q){ return(p*(abs(x/b))^qexp(-(abs(x/b))^p)/(2bgamma((q+1)/p))) } rbep <- function(n,b,p,q) { x=numeric(n) for (i in 1:n) { Y=rgamma(1,(q+1)/p,1); I=ifelse(runif(1,0,1)<=0.5,1,-1) x[i]=bI*Y^(1/p) } return (sort(x)) }
-
-3) Bimodal power normal distribution
-dbpn=function(x,a){ return(a*2^(a-1)dnorm(x,0,1)pnorm(abs(x),0,1)^(a-1)/(2^a-1)) } rbpn=function(n,a){ wyn=numeric(n) for (i in 1:n){ U=runif(1,0,1) if (U<0.5) wyn[i]=-qnorm((1-2^(1-a)U(2^a-1))^(1/a),0,1) else wyn[i]=qnorm((2^(1-a)(2^a-1)(U-0.5)+2^(-a))^(1/a),0,1) } return(sort(wyn)) }
-
-4) Beta distribution, package "betafunctions"
-dBeta.4P(x, -b, b, a, a) and rBeta.4P(n, -b, b, a, a)
-5) Bimodal skew-symmetric normal distribution
-dbssn <- function(x,a,b) {
-  licz = 2 * (a) ^ (1.5) * (b + x ^ 2) * exp(-a * x ^ 2)
-  mian = 1 + 2 * a * b
-  return (licz / mian / sqrt(pi)) }
-rbssn=function(n,a,b){
-  wyn=numeric(n)
-  dd=ifelse(a>=2,dbssn(0,a,b),
-    optimize(function(x) dbssn(x,a,b),interval=c(0,1), maximum=1)$maximum)
-  for (i in 1:n){
-    R1 = runif(1,-2,2); R2 = runif(1,0,dd); w = dbssn(R1,a,b)
+  # 9) Edgeworth series distribution 
+  des=function(x,a){
+    return(dnorm(x,0,1)*(a*x^4-6*a*x^2+3*a+24)/24) }
+  res=function(n,a){
+    xp=-4; xk=4; wyn=numeric(n)
+    d=des(0,a)
+    for (i in 1:n){
+      R1 = runif(1,xp,xk); R2 = runif(1,0,d); w = des(R1,a)
+      while(w<R2){
+        R1 = runif(1,xp,xk);  R2 = runif(1,0,d); w = des(R1,a)}
+      wyn[i]=R1 }
+    return(sort(wyn)) }
+  
+  # 10) Exponential power distribution
+  dep = function(x,a) {
+   return(exp(-abs(x)^a/a)/(2*a^(1/a)*gamma(1+1/a))) }
+  rep=function(n,a){
+    wyn=numeric(n); d=dep(0,a)
+    for (i in 1:n){
+      R1 = runif(1,-5,5); R2 = runif(1,0,d); w = dep(R1,a)
+      while(w<R2){
+        R1 = runif(1,-5,5); R2 = runif(1,0,d)
+        w = dep(R1,a) }
+      wyn[i]=R1  }
+    return(sort(wyn))  }
+  
+  # 11) Extended normal distribution
+  denorm=function(x,a){
+    ws=(1+a*x^2)/(1+a)
+    return(ws*dnorm(x,0,1)) }
+  renorm=function(n,a){
+    wyn=numeric(n)
+    if (a<=0.5) d=denorm(0,a) else d=optimize(function(x) 
+        denorm(x,a),interval=c(0,4), maximum=1)$maximum
+    d=denorm(0,a)
+    for (i in 1:n){
+      R1 = runif(1,-4.5,4.5); R2 = runif(1,0,d); w = denorm(R1,a)
+      while(w<R2){
+        R1 = runif(1,-4.5,4.5); R2 = runif(1,0,d);  w = denorm(R1,a) }
+      wyn[i]=R1 }
+    return(sort(wyn)) }  
+  
+  # 12) Extended Laplace distribution
+  del<-function(x,a) {
+    return ((1+a*abs(x))*exp(-abs(x))/(2+2*a)) }
+  rel=function(n,a){
+    xp=-7; xk=7;  wyn=numeric(n)
+    d=ifelse(a<=1, del(0,a),
+        optimize(function(x) del(x,a),interval=c(0,2), maximum=1)$maximum)
+    for (i in 1:n){
+      R1 = runif(1,xp,xk); R2 = runif(1,0,d); w = del(R1,a)
+      while(w<R2){
+        R1 = runif(1,xp,xk); R2 = runif(1,0,d); w = del(R1,a) }
+      wyn[i]=R1}
+    return(sort(wyn)) }
+  
+  # 13) Extended t distribution
+  destu=function(x,a,v){
+    return((v+(1+a+a*v)*x^2)*dt(x,v)/(v+x^2)/(1+a)) }
+  restu=function(n,a,v){
+    xp=-6; xk=6; wyn=numeric(n)
+    d=ifelse(a<0.9,destu(0,a,v),
+        optimize(function(x) destu(x,a,v),interval=c(0,2), maximum=1)$maximum)
+    for (i in 1:n){
+      R1 = runif(1,xp,xk); R2 = runif(1,0,d); w = destu(R1,a,v)
+      while(w<R2){
+        R1 = runif(1,xp,xk); R2 = runif(1,0,d); w = destu(R1,a,v) }
+      wyn[i]=R1 }
+    return(sort(wyn))  }
+  
+  # 14) Generalized error distribution
+  dge=function(x,a){
+    return(2^(-a-1)*exp(-0.5*abs(x)^(1/a))/gamma(a+1)) }
+  rge=function(n,a){
+    xp=-5; xk=5;  wyn=numeric(n); d=dge(0,a)
+    for (i in 1:n){
+      R1 = runif(1,xp,xk); R2 = runif(1,0,d); w = dge(R1,a)
+      while(w<R2){
+        R1 = runif(1,xp,xk); R2 = runif(1,0,d); w = dge(R1,a) }
+      wyn[i]=R1 }
+    return(sort(wyn))  }
+  
+  # 15) Generalized normal distribution, "gnorm" package 
+  # dgnorm(x,0,sqrt(2),b) and rgnorm(n,0,sqrt(2),b)
+  
+  # 16) Irwin–Hall distribution, "unifed" package for dirwin.hall(x,n)
+  rirwin.hall=function(n,nn){
+    wyn=numeric(n); d=dirwin.hall(nn/2,nn)
+    for (i in 1:n){ R1 = runif(1,0,nn); R2 = runif(1,0,d); w = dirwin.hall(R1,nn)      
     while(w<R2){
-      R1 = runif(1,-2,2); R2 = runif(1,0,dd); w = dbssn(R1,a,b) }
-    wyn[i]=R1 }
-  return(sort(wyn)) }
-6) Champernowne distribution
-inside=function(x,a,b){ return(1/(cosh(a*x)+b)) } mian=function(x,a,b) { B58<-function (x) return (inside(x,a,b)) return (as.numeric(integrate(B58, lower =-Inf, upper = Inf)[1])) } dch=function(x,a,b) { return(inside(x,a,b)/mian(x,a,b)) } rch=function(n,a,b){ wyn=numeric(n); d=dch(0,a,b) for (i in 1:n){ R1 = runif(1,-5,5); R2 = runif(1,0,d); w = dch(R1,a,b) while(w<R2){ R1 = runif(1,-5,5); R2 = runif(1,0,d); w = dch(R1,a,b) } wyn[i]=R1 } return(sort(wyn)) }
+        R1 = runif(1,0,nn); R2 = runif(1,0,d);  w = dirwin.hall(R1,nn) }
+      wyn[i]=R1 }
+    return(sort(wyn)) }
+  
+  # 17) Normal-inverse Gaussian distribution 
+  dnig=function(x,a,d) {
+    return(a*d*exp(a*d)*besselK(a*sqrt(x^2+d^2),1)/pi/sqrt(x^2+d^2)) }
+  rnig=function(n,a,d){
+    wyn=numeric(n); d1=dnig(0,a,d)
+    for (i in 1:n){
+      R1 = runif(1,-6,6); R2 = runif(1,0,d1); w = dnig(R1,a,d)
+      while(w<R2){
+        R1 = runif(1,-6,6); R2 = runif(1,0,d1); w = dnig(R1,a,d) }
+      wyn[i]=R1 }
+    return(sort(wyn))  }
+  
+  # 18) Pearson distribution, "PearsonDS" package
+  # dpearson(x,moments=c(mean=0,variance=1,skewness=0,kurtosis=a+3))
+  # rpearson(n,moments=c(mean=0,variance=1,skewness=0,kurtosis=a+3))
+  
+  # 19) Plasticizing component, "PSDistr" package
+  # dpc(x,0,1,a) and rpc(n,a)
+  
+  # 20) Position-contamined normal distribution
+  dpcn=function(x,a){
+    return(0.5*dnorm(x,0,1)+0.5*dnorm(x,a,1)) }
+  rpcn=function(n,a) {
+    wyn=numeric(n)
+    for (i in 1:n){
+      wyn[i]=ifelse(runif(1,0,1)<0.5,rnorm(1,0,1),rnorm(1,a,1)) }
+    return(sort(wyn)) }
+  
+  # 21) Q-gaussian distribution 
+  dqg=function(x,p,q){
+    c=2*sqrt(pi)*gamma(1/(1-q))/((3-q)*sqrt(1-q)*gamma((3-q)/(2-2*q)))
+    wyn=sqrt(p)/c*(1+(1-q)*(-p*x^2))^(1/(1-q))
+    return(wyn) }
+  rqg=function(n,p,q){
+    wyn=numeric(n); d=dqg(0,p,q); xg=1/sqrt(p*(1-q))
+    for (i in 1:n){
+      R1 = runif(1,-xg,xg); R2 = runif(1,0,d); w = dqg(R1,p,q)
+      while(w<R2){
+        R1 = runif(1,-xg,xg); R2 = runif(1,0,d); w = dqg(R1,p,q)}
+      wyn[i]=R1 }
+    return(sort(wyn)) }
+ 
+  # 22) Scale-contamined normal distribution 
+  dscn=function(x,a,w) {
+    return((1-w)*dnorm(x,0,1)+w*dnorm(x,0,a)) }
+  rscn=function(n,a,w) {
+    wyn=numeric(n)
+    for (i in 1:n){
+      wyn[i]=ifelse(runif(1,0,1)<w,rnorm(1,0,a),rnorm(1,0,1)) }
+    return(sort(wyn)) }
+  
+  # 23) Sinh-normal distribution 
+  dshn<-function(x,a,b) {
+    return (cosh(x/b)*2/(a*b)*dnorm(2*sinh(x/b)/a,0,1)) }
+  rshn<-function(n,a,b) {
+    wyn=numeric(n)
+    for (i in 1:n){
+      wyn[i]=b*asinh(a*rnorm(1,0,1)/2) }
+    return(sort(wyn))} 
+  
+  # 24) SB distribution, "ExtDist" package
+  # dJohnsonSB(x,0,a,-4,8)) and rJohnsonSB(n,0,a,-4,8))
 
-7) DS normal distribution, package "PSDistr"
-ddsn(x,a,b,0,0) and rdsn(n,a,b,0,0)
-8) Easily changeable kurtosis distribution, package "PSDistr"
-deck(x,a,p) and reck(n,a,p)
-9) Edgeworth series distribution
-des=function(x,a){ return(dnorm(x,0,1)(ax^4-6ax^2+3*a+24)/24) } res=function(n,a){ xp=-4; xk=4; wyn=numeric(n) d=des(0,a) for (i in 1:n){ R1 = runif(1,xp,xk); R2 = runif(1,0,d); w = des(R1,a) while(w<R2){ R1 = runif(1,xp,xk); R2 = runif(1,0,d); w = des(R1,a)} wyn[i]=R1 } return(sort(wyn)) }
+  # 25) SU distribution, "ExtDist" package
+  # dJohnsonSU(x,0,a,0,b) and rJohnsonSU(n,0,a,0,b)
+  
+  # 26) t distribution, "stats" package
+  # dt(x,v) and rt(n,v)
+  
+  # 27) Two-piece skew-normal distribution 
+  dtpsn<-function (x,b,c) {
+    return(2*pi*dnorm(x/b,0,1)*pnorm(c*abs(x)/b,0,1)/(b*(pi+2*atan(c)))) }
+  rtpsn=function(n,b,c){
+    wyn=numeric(n)
+    d=ifelse(c<0.5,dtpsn(0,b,c),
+        optimize(function(x) dtpsn(x,b,c),interval=c(0,3), maximum=1)$maximum)
+    for (i in 1:n){
+      R1 = runif(1,-4,4); R2 = runif(1,0,d); w = dtpsn(R1,b,c)
+      while(w<R2){
+        R1 = runif(1,-4,4); R2 = runif(1,0,d); w = dtpsn(R1,b,c) }
+      wyn[i]=R1 }
+    return(sort(wyn)) }
+  
+  # 28) Truncated normal distribution, "truncnorm" package
+  # dtruncnorm(x,-a,a,0,b) and rtruncnorm(n,-a,a,0,b)
+  
+  # 29) Tukey distribution, "extraDistr" package
+  # rtlambda(n,a)
+  
+  # 30) U-power distribution
+  dup<-function (x,a,b) {
+    return((2*b+1)/(2*a)*(x/a)^(2*b)) }
+  rup=function(n,a,b){
+    wyn=numeric(n)
+    for (i in 1:n){
+        wyn[i]=nthroot(2*a^(2*b+1)*(runif(1,0,1)-0.5),2*b+1) }
+    return(sort(wyn)) }
+  
+  #alternative parameters
+  #1 
+  bates=numeric(8); bates=c(1,2,3,4,6,8,12,22)
+  kol[1]=length(bates)
+  #2
+  bep=matrix(NA,nrow=2, ncol=10)
+  bep=rbind(c(1.692,1.745,1.81,1.894,2,1.874,1.768,1.598,1.465,1.357),
+            c(0.492,0.358,0.232,0.113,0,0.043,0.084,0.161,0.233,0.301))
+  kol[2]=length(bep)/2
+  #3
+  bpn=numeric(10)
+  bpn=c(2.059,1.763,1.49,1.236,1,0.888,0.779,0.57,0.373,0.186)
+  kol[3]=length(bpn)
+  #4
+  beta_=matrix(NA,nrow=2, ncol=11)
+  beta_=rbind(c(1.5,1.833,2.25,2.786,3.5,4.5,6,8.5,13.5,28.5,81.36),
+   c(2.41,2.431,2.5,2.817,2.88,2,2,1.5,1.449,2.091,0.48))
+  kol[4]=length(beta_)/2
+  #5
+  bssn=matrix(NA,nrow=2, ncol=11)
+  bssn=rbind(c(1.7,1.7,1.6,1.6,1.626,2.049,2.104,2.629,3,3.033,22.241),
+              c(0.137,0.192,0.273,0.356,0.453,0.463,0.589,0.632,0.791,1.311,13.218))
+  kol[5]=length(bssn)/2
+  #6
+  ch=numeric(10)
+  ch=c(42.516,28.874,20.586,15.225,11.592,10.202,9.023,7.149,5.743,4.665)
+  kol[6]=length(bpn)
+  
+  #7
+  dsn=matrix(NA,nrow=2, ncol=11)
+  dsn=rbind(c(3.315,1.924,1.112,0.634,0.353,0.191,0.098,0.047,0.02,0.009,0),
+             c(2.094,2.019,1.924,1.816,1.698,1.575,1.451,1.33,1.213,1.221,1))
+  kol[7]=length(dsn)/2
+  
+  #8
+  eck=numeric(11)
+  eck=c(0.5,0.833,1.25,1.786,2.5,3.5,5,7.5,12.5,27.5,160.706)
+  kol[8]=length(eck)
+  
+  #9
+  es=numeric(11)
+  es=c(-1,-0.9,-0.8,-0.7,-0.6,0,0.1,0.2,0.3,0.4,0.5)
+  kol[9]=length(es)
+  
+  #10
+  ep=numeric(11)
+  ep=c(3.422,3.057,2.779,2.559,2.381,2,1.907,1.824,1.752,1.687,1.628)
+  kol[10]=length(ep)
+  
+  #11
+  enor=numeric(11)
+  enor=c(2.155,1.535,1.145,0.877,0.679,0.527,0.404,0.301,0.211,0.126,0)
+  kol[11]=length(enor)
+  
+  #12
+  el=numeric(11)
+  el=c(10.164,6.162,4.342,3.302,2.627,2.155,1.805,1.535,1.32,1.146,1)
+  kol[12]=length(el)
+  
+  #13
+  estu=matrix(NA,nrow=2, ncol=11)
+  estu=rbind(c(0.86,0.693,0.576,0.479,0.452,0.071,0.423,0.492,0.562,0.632,1.482),
+            c(28,27,25,23.268,18.978,149.141,14,11.5,10,9,7.041))
+  kol[13]=length(estu)/2  
+  
+  #14
+  ge=numeric(12)
+  ge=c(0.36,0.391,0.42,0.448,0.474,0.5,0.512,0.525,0.548,0.571,0.593,0.614)
+  kol[14]=length(ge) 
+  
+  #15
+  gnor=numeric(12)
+  gnor=c(2.779,2.559,2.381,2.233,2.108,2,1.952,1.907,1.824,1.752,1.687,1.628)
+  kol[15]=length(gnor)
+  
+  #16
+  ih=numeric(8)
+  ih=c(1,2,3,4,6,8,12,22)
+  kol[16]=length(ih)
+  
+  #17
+  nig_=matrix(NA,nrow=2, ncol=12)
+  nig_=rbind(c(16.815,7.629,5.286,5,5,5,5,5,5,5,5,5),
+            c(16.85,7.865,5.675,3,2,1.5,1.2,1,0.857,0.75,0.667,0.6))
+  kol[17]=length(nig_)/2  
+  
+  #18
+  pearson=numeric(12)
+  pearson=c(-1,-0.9,-0.8,-0.7,-0.6,-0.5,0,0.1,0.2,0.3,0.4,0.5)
+  kol[18]=length(pearson)
+  
+  #19
+  pc=numeric(11)
+  pc=c(1.446,1.371,1.307,1.251,1.203,1.159,1.121,1.086,1.055,1.026,1)
+  kol[19]=length(pc)
+  
+  #20
+  pcn=numeric(11)
+  pcn=c(228.392,6.081,4.116,3.201,2.622,2.197,1.855,1.556,1.272,0.962,0)
+  kol[20]=length(pcn)
+  
+  #21
+  qg=matrix(NA,nrow=2, ncol=10)
+  qg=rbind(c(0.497,0.497,0.497,0.497,0.497,0.497,0.497,0.497,0.497,0.497),
+            c(0.005,0.2,0.44,0.6,0.714,0.8,0.867,0.92,0.964,0.994))
+  kol[21]=length(qg)/2 
+  
+  #22
+  scn=matrix(NA,nrow=2, ncol=11)
+  scn=rbind(c(1,1.139,1.203,1.302,1.387,1.466,1.543,1.618,1.694,1.771,1.85,1.932),
+            c(1,0.984,0.978,0.968,0.961,0.854,0.948,0.943,0.938,0.933,0.928,0.923))
+  kol[22]=length(scn)/2  
+  
+  #23
+  shn=matrix(NA,nrow=2, ncol=11)
+  shn=rbind(c(2.591,2.142,1.786,1.495,1.251,1.04,0.853,0.682,0.516,0.339,0.031),
+            c(5.308,5.308,5.308,5.308,5.308,5.308,5.308,5.308,5.308,5.308,25.812))
+  kol[23]=length(shn)/2  
+  
+  #24
+  jsb=numeric(11)
+  jsb=c(0.84,0.952,1.079,1.225,1.398,1.613,1.892,2.286,2.923,4.305,19.645)
+  kol[24]=length(jsb)
+  
+  #25
+  jsu=numeric(12)
+  jsu=c(20.033,9.027,6.441,4.634,3.846,3.384,3.072,2.845,2.67,2.531,2.417,2.321)
+  kol[25]=length(jsu)
+  
+  #26
+  t=numeric(12)
+  t=c(604,124,64,34,24,19,16,14,12.571,11.5,10.667,10)
+  kol[26]=length(t)
+  
+  #27
+  tpsn=numeric(9)
+  tpsn=c(1.214,0.765,0.574,0.443,0.337,0.245,0.16,0.079,0)
+  kol[27]=length(tpsn)
+  
+  #28
+  tn=matrix(NA,nrow=2, ncol=11)
+  tn=rbind(c(0.674,0.755,0.856,0.995,1.172,1.388,1.651,1.973,2.381,2.948,5),
+            c(0.568,0.522,0.512,0.531,0.567,0.616,0.674,0.741,0.817,0.903,1))
+  kol[28]=length(tn)/2  
+  
+  #29
+  tl=numeric(11)
+  tl=c(0.409,0.351,0.303,0.264,0.23,0.135,0.126,0.117,0.102,0.087,0.074,0.062)
+  kol[29]=length(tl)
+  
+  #30
+  up=numeric(10)
+  up=c(44,15,10,8,6,5,4,3,2,1)
+  kol[30]=length(up)
+  
+  # main calculations
+  cv=numeric(12) # critical values
+  cv=c(0.9582,0.1492,0.0448,2.3458,9.9630,0.0170,5.8733,4.1571,7.2457,2.3016,6.3707,0.1588)
+  power=matrix(NA,nrow=20,ncol=kol[alt]) #power of tests
+  alt
+  for (j in 1: kol[alt]) power[,j]=0 #resetting the table
+ 
+  for (j in 1:kol[alt])
+    {
+      for (i in 1:ile)
+        {
+          print(paste(j,i))
+          # dane=rbates(n,8.077,bates[j])
+          # dane=rbep(n,sqrt(2),bep[1,j],bep[2,j])
+          # dane=rbpn(n,bpn[j])
+          # dane=sort(rBeta.4P(n,-beta_[2,j],beta_[2,j],beta_[1,j],beta_[1,j]))
+          # dane=rbssn(n,bssn[1,j],bssn[2,j])
+          # dane=rch(n,2,ch[j])
+          # dane=rdsn(n,dsn[1,j],dsn[2,j],0,0)
+          # dane=reck(n,8.326,eck[j])
+          # dane=res(n,es[j])
+          # dane=rep(n,ep[j])
+          # dane=renorm(n,enor[j])
+          # dane=rel(n,el[j])
+          # dane=restu(n,estu[1,j],estu[2,j])
+          # dane=rge(n,ge[j])
+          # dane=sort(rgnorm(n,0,sqrt(2),gnor[j]))
+          # dane=sort(rirwin.hall(n,ih[j]))
+          # dane=rnig(n,nig_[1,j],nig_[2,j])
+          # dane=sort(rpearson(n,moments=c(mean=0,variance=1,skewness=0,kurtosis=pearson[j]+3)))
+          # dane=sort(rpc(n,pc[j]))
+          # dane=rpcn(n,pcn[j])
+          # dane=rqg(n,qg[1,j],qg[2,j])
+          # dane=rscn(n,scn[1,j],scn[2,j])
+          # dane=rshn(n,shn[1,j],shn[2,j])
+          # dane=sort(rJohnsonSB(n,0,jsb[j],-4,8))
+          # dane=sort(rJohnsonSU(n,0,jsu[j],0,17))
+          # dane=sort(rt(n,t[j]))
+          # dane=rtpsn(n,1,tpsn[j])
+          # dane=sort(rtruncnorm(n,-tn[1,j],tn[1,j],0,tn[2,j]))
+          # dane=sort(rtlambda(n,tl[j]))
+          # dane=rup(n,4/3,up[j])
+        
+    
+          if(ad.test(dane)$p.value<0.05) power[1,j]=power[1,j]+1 #1
+          if(shapiro.test(dane)$p.value<0.05) power[2,j]=power[2,j]+1 #2
+          if(kurtosis.norm.test(dane)$p.value<0.05) power[3,j]=power[3,j]+1 #3
+          if(agostino.test(dane)$p.value<0.05) power[4,j]=power[4,j]+1 #4
+          if(sf.test(dane)$p.value<0.05) power[5,j]=power[5,j]+1 #5
+          if(dagoTest(dane)@test$statistic[1]>cv[11]) power[6,j]=power[6,j]+1 #6
+          if(RJ(dane)<cv[1]) power[7,j]=power[7,j]+1 #7
+          if(jarque.test(dane)$statistic>cv[8]) power[8,j]=power[8,j]+1 #8
+          if(statcompute(stat.index = 10, data = dane, level = 0.05)$statistic>cv[7]) power[9,j]=power[9,j]+1 #9
+          if(statcompute(stat.index = 26, data = dane, level = 0.05)$statistic>cv[3]) power[10,j]=power[10,j]+1 #10
+          if(ajb.norm.test(dane)$p.value<0.05) power[11,j]=power[11,j]+1 #11
+          if(bonett.test(dane)$p.value<0.05) power[12,j]=power[12,j]+1 #12
+          if(statcompute(stat.index = 4, data = dane, level = 0.05)$statistic>cv[4]) power[13,j]=power[13,j]+1 #13
+          if(statcompute(stat.index = 3, data = dane, level = 0.05)$statistic>cv[5]) power[14,j]=power[14,j]+1 #14
+          if(sj.test(dane)$statistic>cv[10]) power[15,j]=power[15,j]+1 #15
+          if(statcompute(stat.index = 30, data = dane, level = 0.05)$statistic>cv[6]) power[16,j]=power[16,j]+1 #16
+          if(rjb.test(dane)$statistic>cv[9]) power[17,j]=power[17,j]+1 #17
+          if(statcompute(stat.index = 36, data = dane, level = 0.05)$pvalue<0.05) power[18,j]=power[18,j]+1 #18
+          if(statcompute(stat.index = 37, data = dane, level = 0.05)$pvalue<0.05) power[19,j]=power[19,j]+1 #19
+          if ((kurtosis(dane)-3)>0) if (LF(dane,1,1)>cv[12]) power[20,j]=power[20,j]+1 #21
+          if ((kurtosis(dane)-3)<0) if (LF(dane,0,0)>cv[2]) power[20,j]=power[20,j]+1 #21
+   }
+  }
+write.csv2(power/ile,paste(alt,".csv"))
+#write.xlsx(power/ile,paste(alt,"U.xlsx"))
 
-10) Exponential power distribution
-dep = function(x,a) { return(exp(-abs(x)^a/a)/(2*a^(1/a)*gamma(1+1/a))) } rep=function(n,a){ wyn=numeric(n); d=dep(0,a) for (i in 1:n){ R1 = runif(1,-5,5); R2 = runif(1,0,d); w = dep(R1,a) while(w<R2){ R1 = runif(1,-5,5); R2 = runif(1,0,d) w = dep(R1,a) } wyn[i]=R1 } return(sort(wyn)) }
 
-11) Extended normal distribution
-denorm=function(x,a){ ws=(1+ax^2)/(1+a) return(wsdnorm(x,0,1)) } renorm=function(n,a){ wyn=numeric(n) if (a<=0.5) d=denorm(0,a) else d=optimize(function(x) denorm(x,a),interval=c(0,4), maximum=1)$maximum d=denorm(0,a) for (i in 1:n){ R1 = runif(1,-4.5,4.5); R2 = runif(1,0,d); w = denorm(R1,a) while(w<R2){ R1 = runif(1,-4.5,4.5); R2 = runif(1,0,d); w = denorm(R1,a) } wyn[i]=R1 } return(sort(wyn)) }
-
-12) Extended Laplace distribution
-del<-function(x,a) { return ((1+a*abs(x))exp(-abs(x))/(2+2a)) } rel=function(n,a){ xp=-7; xk=7; wyn=numeric(n) d=ifelse(a<=1, del(0,a), optimize(function(x) del(x,a),interval=c(0,2), maximum=1)$maximum) for (i in 1:n){ R1 = runif(1,xp,xk); R2 = runif(1,0,d); w = del(R1,a) while(w<R2){ R1 = runif(1,xp,xk); R2 = runif(1,0,d); w = del(R1,a) } wyn[i]=R1} return(sort(wyn)) }
-
-13) Extended t distribution
-destu=function(x,a,v){ return((v+(1+a+a*v)*x^2)*dt(x,v)/(v+x^2)/(1+a)) } restu=function(n,a,v){ xp=-6; xk=6; wyn=numeric(n) d=ifelse(a<0.9,destu(0,a,v), optimize(function(x) destu(x,a,v),interval=c(0,2), maximum=1)$maximum) for (i in 1:n){ R1 = runif(1,xp,xk); R2 = runif(1,0,d); w = destu(R1,a,v) while(w<R2){ R1 = runif(1,xp,xk); R2 = runif(1,0,d); w = destu(R1,a,v) } wyn[i]=R1 } return(sort(wyn)) }
-
-14) Generalized error distribution
-dge=function(x,a){ return(2^(-a-1)exp(-0.5abs(x)^(1/a))/gamma(a+1)) } rge=function(n,a){ xp=-5; xk=5; wyn=numeric(n); d=dge(0,a) for (i in 1:n){ R1 = runif(1,xp,xk); R2 = runif(1,0,d); w = dge(R1,a) while(w<R2){ R1 = runif(1,xp,xk); R2 = runif(1,0,d); w = dge(R1,a) } wyn[i]=R1 } return(sort(wyn)) }
-
-15) Generalized normal distribution, "gnorm" package
-dgnorm(x,0,sqrt(2),b) and rgnorm(n,0,sqrt(2),b)
-16) Irwin–Hall distribution, "unifed" package for dirwin.hall(x,n)
-rirwin.hall=function(n,nn){ wyn=numeric(n); d=dirwin.hall(nn/2,nn) for (i in 1:n){ R1 = runif(1,0,nn); R2 = runif(1,0,d); w = dirwin.hall(R1,nn)
-while(w<R2){ R1 = runif(1,0,nn); R2 = runif(1,0,d); w = dirwin.hall(R1,nn) } wyn[i]=R1 } return(sort(wyn)) }
-
-17) Normal-inverse Gaussian distribution
-dnig=function(x,a,d) { return(adexp(a*d)besselK(asqrt(x^2+d^2),1)/pi/sqrt(x^2+d^2)) } rnig=function(n,a,d){ wyn=numeric(n); d1=dnig(0,a,d) for (i in 1:n){ R1 = runif(1,-6,6); R2 = runif(1,0,d1); w = dnig(R1,a,d) while(w<R2){ R1 = runif(1,-6,6); R2 = runif(1,0,d1); w = dnig(R1,a,d) } wyn[i]=R1 } return(sort(wyn)) }
-
-18) Pearson distribution, "PearsonDS" package
-dpearson(x,moments=c(mean=0,variance=1,skewness=0,kurtosis=a+3))
-rpearson(n,moments=c(mean=0,variance=1,skewness=0,kurtosis=a+3))
-19) Plasticizing component, "PSDistr" package
-dpc(x,0,1,a) and rpc(n,a)
-20) Position-contamined normal distribution
-dpcn=function(x,a){ return(0.5dnorm(x,0,1)+0.5dnorm(x,a,1)) } rpcn=function(n,a) { wyn=numeric(n) for (i in 1:n){ wyn[i]=ifelse(runif(1,0,1)<0.5,rnorm(1,0,1),rnorm(1,a,1)) } return(sort(wyn)) }
-
-21) Q-gaussian distribution
-dqg=function(x,p,q){ c=2sqrt(pi)gamma(1/(1-q))/((3-q)sqrt(1-q)gamma((3-q)/(2-2q))) wyn=sqrt(p)/c(1+(1-q)(-px^2))^(1/(1-q)) return(wyn) } rqg=function(n,p,q){ wyn=numeric(n); d=dqg(0,p,q); xg=1/sqrt(p*(1-q)) for (i in 1:n){ R1 = runif(1,-xg,xg); R2 = runif(1,0,d); w = dqg(R1,p,q) while(w<R2){ R1 = runif(1,-xg,xg); R2 = runif(1,0,d); w = dqg(R1,p,q)} wyn[i]=R1 } return(sort(wyn)) }
-
-22) Scale-contamined normal distribution
-dscn=function(x,a,w) { return((1-w)dnorm(x,0,1)+wdnorm(x,0,a)) } rscn=function(n,a,w) { wyn=numeric(n) for (i in 1:n){ wyn[i]=ifelse(runif(1,0,1)<w,rnorm(1,0,a),rnorm(1,0,1)) } return(sort(wyn)) }
-
-23) Sinh-normal distribution
-dshn<-function(x,a,b) { return (cosh(x/b)2/(ab)dnorm(2sinh(x/b)/a,0,1)) } rshn<-function(n,a,b) { wyn=numeric(n) for (i in 1:n){ wyn[i]=basinh(arnorm(1,0,1)/2) } return(sort(wyn))}
-
-24) SB distribution, "ExtDist" package
-dJohnsonSB(x,0,a,-4,8)) and rJohnsonSB(n,0,a,-4,8))
-25) SU distribution, "ExtDist" package
-dJohnsonSU(x,0,a,0,b) and rJohnsonSU(n,0,a,0,b)
-26) t distribution, "stats" package
-dt(x,v) and rt(n,v)
-27) Two-piece skew-normal distribution
-dtpsn<-function (x,b,c) { return(2pidnorm(x/b,0,1)pnorm(cabs(x)/b,0,1)/(b*(pi+2*atan(c)))) } rtpsn=function(n,b,c){ wyn=numeric(n) d=ifelse(c<0.5,dtpsn(0,b,c), optimize(function(x) dtpsn(x,b,c),interval=c(0,3), maximum=1)$maximum) for (i in 1:n){ R1 = runif(1,-4,4); R2 = runif(1,0,d); w = dtpsn(R1,b,c) while(w<R2){ R1 = runif(1,-4,4); R2 = runif(1,0,d); w = dtpsn(R1,b,c) } wyn[i]=R1 } return(sort(wyn)) }
-
-28) Truncated normal distribution, "truncnorm" package
-dtruncnorm(x,-a,a,0,b) and rtruncnorm(n,-a,a,0,b)
-29) Tukey distribution, "extraDistr" package
-rtlambda(n,a)
-30) U-power distribution
-dup<-function (x,a,b) { return((2b+1)/(2a)(x/a)^(2b)) } rup=function(n,a,b){ wyn=numeric(n) for (i in 1:n){ wyn[i]=nthroot(2a^(2b+1)(runif(1,0,1)-0.5),2b+1) } return(sort(wyn)) }
-
-#alternative parameters #1 bates=numeric(8); bates=c(1,2,3,4,6,8,12,22) kol[1]=length(bates) #2 bep=matrix(NA,nrow=2, ncol=10) bep=rbind(c(1.692,1.745,1.81,1.894,2,1.874,1.768,1.598,1.465,1.357), c(0.492,0.358,0.232,0.113,0,0.043,0.084,0.161,0.233,0.301)) kol[2]=length(bep)/2 #3 bpn=numeric(10) bpn=c(2.059,1.763,1.49,1.236,1,0.888,0.779,0.57,0.373,0.186) kol[3]=length(bpn) #4 beta_=matrix(NA,nrow=2, ncol=11) beta_=rbind(c(1.5,1.833,2.25,2.786,3.5,4.5,6,8.5,13.5,28.5,81.36), c(2.41,2.431,2.5,2.817,2.88,2,2,1.5,1.449,2.091,0.48)) kol[4]=length(beta_)/2 #5 bssn=matrix(NA,nrow=2, ncol=11) bssn=rbind(c(1.7,1.7,1.6,1.6,1.626,2.049,2.104,2.629,3,3.033,22.241), c(0.137,0.192,0.273,0.356,0.453,0.463,0.589,0.632,0.791,1.311,13.218)) kol[5]=length(bssn)/2 #6 ch=numeric(10) ch=c(42.516,28.874,20.586,15.225,11.592,10.202,9.023,7.149,5.743,4.665) kol[6]=length(bpn)
-
-#7 dsn=matrix(NA,nrow=2, ncol=11) dsn=rbind(c(3.315,1.924,1.112,0.634,0.353,0.191,0.098,0.047,0.02,0.009,0), c(2.094,2.019,1.924,1.816,1.698,1.575,1.451,1.33,1.213,1.221,1)) kol[7]=length(dsn)/2
-
-#8 eck=numeric(11) eck=c(0.5,0.833,1.25,1.786,2.5,3.5,5,7.5,12.5,27.5,160.706) kol[8]=length(eck)
-
-#9 es=numeric(11) es=c(-1,-0.9,-0.8,-0.7,-0.6,0,0.1,0.2,0.3,0.4,0.5) kol[9]=length(es)
-
-#10 ep=numeric(11) ep=c(3.422,3.057,2.779,2.559,2.381,2,1.907,1.824,1.752,1.687,1.628) kol[10]=length(ep)
-
-#11 enor=numeric(11) enor=c(2.155,1.535,1.145,0.877,0.679,0.527,0.404,0.301,0.211,0.126,0) kol[11]=length(enor)
-
-#12 el=numeric(11) el=c(10.164,6.162,4.342,3.302,2.627,2.155,1.805,1.535,1.32,1.146,1) kol[12]=length(el)
-
-#13 estu=matrix(NA,nrow=2, ncol=11) estu=rbind(c(0.86,0.693,0.576,0.479,0.452,0.071,0.423,0.492,0.562,0.632,1.482), c(28,27,25,23.268,18.978,149.141,14,11.5,10,9,7.041)) kol[13]=length(estu)/2
-
-#14 ge=numeric(12) ge=c(0.36,0.391,0.42,0.448,0.474,0.5,0.512,0.525,0.548,0.571,0.593,0.614) kol[14]=length(ge)
-
-#15 gnor=numeric(12) gnor=c(2.779,2.559,2.381,2.233,2.108,2,1.952,1.907,1.824,1.752,1.687,1.628) kol[15]=length(gnor)
-
-#16 ih=numeric(8) ih=c(1,2,3,4,6,8,12,22) kol[16]=length(ih)
-
-#17 nig_=matrix(NA,nrow=2, ncol=12) nig_=rbind(c(16.815,7.629,5.286,5,5,5,5,5,5,5,5,5), c(16.85,7.865,5.675,3,2,1.5,1.2,1,0.857,0.75,0.667,0.6)) kol[17]=length(nig_)/2
-
-#18 pearson=numeric(12) pearson=c(-1,-0.9,-0.8,-0.7,-0.6,-0.5,0,0.1,0.2,0.3,0.4,0.5) kol[18]=length(pearson)
-
-#19 pc=numeric(11) pc=c(1.446,1.371,1.307,1.251,1.203,1.159,1.121,1.086,1.055,1.026,1) kol[19]=length(pc)
-
-#20 pcn=numeric(11) pcn=c(228.392,6.081,4.116,3.201,2.622,2.197,1.855,1.556,1.272,0.962,0) kol[20]=length(pcn)
-
-#21 qg=matrix(NA,nrow=2, ncol=10) qg=rbind(c(0.497,0.497,0.497,0.497,0.497,0.497,0.497,0.497,0.497,0.497), c(0.005,0.2,0.44,0.6,0.714,0.8,0.867,0.92,0.964,0.994)) kol[21]=length(qg)/2
-
-#22 scn=matrix(NA,nrow=2, ncol=11) scn=rbind(c(1,1.139,1.203,1.302,1.387,1.466,1.543,1.618,1.694,1.771,1.85,1.932), c(1,0.984,0.978,0.968,0.961,0.854,0.948,0.943,0.938,0.933,0.928,0.923)) kol[22]=length(scn)/2
-
-#23 shn=matrix(NA,nrow=2, ncol=11) shn=rbind(c(2.591,2.142,1.786,1.495,1.251,1.04,0.853,0.682,0.516,0.339,0.031), c(5.308,5.308,5.308,5.308,5.308,5.308,5.308,5.308,5.308,5.308,25.812)) kol[23]=length(shn)/2
-
-#24 jsb=numeric(11) jsb=c(0.84,0.952,1.079,1.225,1.398,1.613,1.892,2.286,2.923,4.305,19.645) kol[24]=length(jsb)
-
-#25 jsu=numeric(12) jsu=c(20.033,9.027,6.441,4.634,3.846,3.384,3.072,2.845,2.67,2.531,2.417,2.321) kol[25]=length(jsu)
-
-#26 t=numeric(12) t=c(604,124,64,34,24,19,16,14,12.571,11.5,10.667,10) kol[26]=length(t)
-
-#27 tpsn=numeric(9) tpsn=c(1.214,0.765,0.574,0.443,0.337,0.245,0.16,0.079,0) kol[27]=length(tpsn)
-
-#28 tn=matrix(NA,nrow=2, ncol=11) tn=rbind(c(0.674,0.755,0.856,0.995,1.172,1.388,1.651,1.973,2.381,2.948,5), c(0.568,0.522,0.512,0.531,0.567,0.616,0.674,0.741,0.817,0.903,1)) kol[28]=length(tn)/2
-
-#29 tl=numeric(11) tl=c(0.409,0.351,0.303,0.264,0.23,0.135,0.126,0.117,0.102,0.087,0.074,0.062) kol[29]=length(tl)
-
-#30 up=numeric(10) up=c(44,15,10,8,6,5,4,3,2,1) kol[30]=length(up)
-
-main calculations
-cv=numeric(12) # critical values cv=c(0.9582,0.1492,0.0448,2.3458,9.9630,0.0170,5.8733,4.1571,7.2457,2.3016,6.3707,0.1588) power=matrix(NA,nrow=20,ncol=kol[alt]) #power of tests alt for (j in 1: kol[alt]) power[,j]=0 #resetting the table for (j in 1:kol[alt]) { for (i in 1:ile) { print(paste(j,i)) # dane=rbates(n,8.077,bates[j]) # dane=rbep(n,sqrt(2),bep[1,j],bep[2,j]) # dane=rbpn(n,bpn[j]) # dane=sort(rBeta.4P(n,-beta_[2,j],beta_[2,j],beta_[1,j],beta_[1,j])) # dane=rbssn(n,bssn[1,j],bssn[2,j]) # dane=rch(n,2,ch[j]) # dane=rdsn(n,dsn[1,j],dsn[2,j],0,0) # dane=reck(n,8.326,eck[j]) # dane=res(n,es[j]) # dane=rep(n,ep[j]) # dane=renorm(n,enor[j]) # dane=rel(n,el[j]) # dane=restu(n,estu[1,j],estu[2,j]) # dane=rge(n,ge[j]) # dane=sort(rgnorm(n,0,sqrt(2),gnor[j])) # dane=sort(rirwin.hall(n,ih[j])) # dane=rnig(n,nig_[1,j],nig_[2,j]) # dane=sort(rpearson(n,moments=c(mean=0,variance=1,skewness=0,kurtosis=pearson[j]+3))) # dane=sort(rpc(n,pc[j])) # dane=rpcn(n,pcn[j]) # dane=rqg(n,qg[1,j],qg[2,j]) # dane=rscn(n,scn[1,j],scn[2,j]) # dane=rshn(n,shn[1,j],shn[2,j]) # dane=sort(rJohnsonSB(n,0,jsb[j],-4,8)) # dane=sort(rJohnsonSU(n,0,jsu[j],0,17)) # dane=sort(rt(n,t[j])) # dane=rtpsn(n,1,tpsn[j]) # dane=sort(rtruncnorm(n,-tn[1,j],tn[1,j],0,tn[2,j])) # dane=sort(rtlambda(n,tl[j])) # dane=rup(n,4/3,up[j]) if(ad.test(dane)$p.value<0.05) power[1,j]=power[1,j]+1 #1 if(shapiro.test(dane)$p.value<0.05) power[2,j]=power[2,j]+1 #2 if(kurtosis.norm.test(dane)$p.value<0.05) power[3,j]=power[3,j]+1 #3 if(agostino.test(dane)$p.value<0.05) power[4,j]=power[4,j]+1 #4 if(sf.test(dane)$p.value<0.05) power[5,j]=power[5,j]+1 #5 if(dagoTest(dane)@test$statistic[1]>cv[11]) power[6,j]=power[6,j]+1 #6 if(RJ(dane)<cv[1]) power[7,j]=power[7,j]+1 #7 if(jarque.test(dane)$statistic>cv[8]) power[8,j]=power[8,j]+1 #8 if(statcompute(stat.index = 10, data = dane, level = 0.05)$statistic>cv[7]) power[9,j]=power[9,j]+1 #9 if(statcompute(stat.index = 26, data = dane, level = 0.05)$statistic>cv[3]) power[10,j]=power[10,j]+1 #10 if(ajb.norm.test(dane)$p.value<0.05) power[11,j]=power[11,j]+1 #11 if(bonett.test(dane)$p.value<0.05) power[12,j]=power[12,j]+1 #12 if(statcompute(stat.index = 4, data = dane, level = 0.05)$statistic>cv[4]) power[13,j]=power[13,j]+1 #13 if(statcompute(stat.index = 3, data = dane, level = 0.05)$statistic>cv[5]) power[14,j]=power[14,j]+1 #14 if(sj.test(dane)$statistic>cv[10]) power[15,j]=power[15,j]+1 #15 if(statcompute(stat.index = 30, data = dane, level = 0.05)$statistic>cv[6]) power[16,j]=power[16,j]+1 #16 if(rjb.test(dane)$statistic>cv[9]) power[17,j]=power[17,j]+1 #17 if(statcompute(stat.index = 36, data = dane, level = 0.05)$pvalue<0.05) power[18,j]=power[18,j]+1 #18 if(statcompute(stat.index = 37, data = dane, level = 0.05)$pvalue<0.05) power[19,j]=power[19,j]+1 #19 if ((kurtosis(dane)-3)>0) if (LF(dane,1,1)>cv[12]) power[20,j]=power[20,j]+1 #21 if ((kurtosis(dane)-3)<0) if (LF(dane,0,0)>cv[2]) power[20,j]=power[20,j]+1 #21 } } write.xlsx(power/ile,paste(alt,"U.xlsx"))
